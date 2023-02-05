@@ -1,0 +1,207 @@
+---
+title: 'RFM Analysis: The case of Sproket Central'
+author: "Njabulo Hlabangana"
+date: "2023-02-05"
+output: html_document
+ 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+**RFM (Recency, Frequency & Monetary value)** analysis is a powerful and widely used marketing technique. It used to segment customers according to how recently they last made a purchase, how frequently they purchased over the period in question as well as the total monetary value of their purchases over the same period. Customers are scored/ranked on those three criteria. Customers with high recency, high frequency and high monetary value are given high scores. The logic being that customers who made a purchase recently are more likely to make another purchase than those who last purchased a long time ago. Also, customers who make more frequent purchases are more likely to keep making more purchases in the future than those who rarely buy. Similarly, those who make purchases of high monetary value can be reasonably expected to make more purchases than those who make only small monetary value purchases.
+
+Each criteria is typically scored on a scale of 1-5 with 1 being the lowest and 5 the highest. For instance a customer who last made a purchase a long time ago will be given a recency score of 1 while the one who last purchased recently will get a score of 5. These scores are then combined to come up with a 3 digit RFM score. As an example, a customer who bought most recently, buys more frequently and makes high ticket purchases will get an RFM score of 555 while the one on the opposite end of the spectrum will get a score of 111. There is a whole continuum of RFM scores in between those two extremes. It goes without saying that a customer with an RFM score of 111 needs a different marketing approach from a customer with a score of 555. RFM analysis helps with this segmentation in ways that optimize marketing efforts.
+
+
+The data set set contains information about bicycle and other ancillary product transactions made by customers of a seller known as Sproket central.
+
+*All the data cleansing was conduct in excel as I worked on getting it ready for visualization in Tableau. This mainly involved the removal of records that missing critical information like customer ID, age etc*
+
+## Loading the necessary packages
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(rfm)
+library(kableExtra)
+```
+
+## Dataset
+
+The dataset used in this project was obtained from the KPMG virtual case data analyst experience program which I completed in 2022. RFM analysis was not part of the program but the dataset lends itself well to this kind of analysis hence I decided to use it in the project.
+
+
+```{r pressure, echo=FALSE}
+setwd('/Users/hlaba/Documents/Custom Office Templates')
+rfm.data <- read.csv('RFM.csv')
+head(rfm.data)
+```
+
+## Removing Unnecessary Columns
+
+The data set includes a lot of columns that are unnecessary for the kind of analysis that will be conducted. Only the transaction date, profit and customer id columns will be kept. The monetary value part of RFM will be based on the profit obtained form the transactions made by the customer not just revenue.
+
+```{r}
+rfm.clean <- rfm.data %>% select(customer_id,transaction_date,Profit)
+head(rfm.clean)
+```
+
+
+**Making sure that we have the right data types for the columns.**
+
+```{r}
+rfm.clean$transaction_date <- as.Date(rfm.clean$transaction_date,format = "%d/%m/%Y")
+rfm.clean$customer_id <- as.character(rfm.clean$customer_id)
+rfm.clean$Profit <- as.numeric(rfm.clean$Profit)
+head(rfm.clean)
+```
+
+## Choosing the Date of Analysis
+
+The last date of transaction will be used as the date of analysis. The following line of code extracts that date.
+
+```{r}
+analysis_date <- as.Date(max(rfm.clean$transaction_date))
+analysis_date
+```
+
+## Analysis
+
+The rf_table_order function of the rfm package will be used to perfom the actual analysis. The arguments taken by this function are the dataset itself, the customer id, transaction date, monetary value (which is profit in this case) as well as the analysis date. The analysis is based on the cleaned rfm.clean dataset as obtained above.
+
+```{r}
+rfm_outcome <- rfm_table_order(rfm.clean,customer_id,transaction_date,Profit,analysis_date)
+head(rfm_outcome$rfm,10) %>% kable() %>% 
+  kable_classic_2()
+```
+
+The analysis calculates and assigns the recency, frequency and monetary value scores for each customer. It also calculates the actual total monetary value of each customer's purchases during the analysis period.
+
+## RFM Data Visualization
+
+The first visualization is the RFM Heat Map. This show how the three criteria interact. In this case it clear that monetary value increases as both recency and frequency increase with the highest (darkest shade) occuring at the top right hand corner and the least at the bottom left hand corner.
+
+
+```{r}
+rfm_heatmap(rfm_outcome)
+```
+
+
+## The Recency vs Monetary Value Plot
+
+The Recency vs Monetary graph shows that most of the monetary value is associated with the more recent purchasers.The highest value seems to be associated with customers that made a purchase lees than 100 days ago with total profit between 15000 3500 dollars.
+
+```{r}
+rfm_rm_plot(rfm_outcome)
+```
+
+## The Frequency vs Monetary
+
+The Frequency vs Monetary plot show a positive correlation between monetary value and frequency - higher frequency is associated with higher monetary value.
+
+```{r}
+rfm_fm_plot(rfm_outcome)
+```
+
+
+## Segmentation
+
+This is the part where the RFM score is actually used to segment customers. In the this case the score is used to come up with 10 possible segments namely, Champions, Loyal customers, Potential Loyalists, New Customers, Promising Customers, Customers that need attention, customers that are about to "sleep", at risk customers, customers that the company cannot afford to lose and those that are lost.
+
+I will explain a few of the segments here. Champions are the customers with the highest RFM score. As indicated in the code below, champions have a minimum score of 4 on the of the RFM criteria. In other other words, they are those who bought most recently, have a history of buying frequently and make high ticket purchases. At the opposite end of the spectrum we have the lost customers. These are the ones who last made a purchase along time ago, they rarely buy and when the do buy they buy low value items.
+
+The other very important segments is that of **At Risk** customers. These ones last made purchases a long time ago but hitherto they were frequent buyers and were making relatively high value purchases.They therefore have a low recency score - 1 in this case and high scores on frequency and monetary value - between 2 and 5 in this case. The company is therefore at risk of losing these, otherwise high value customers hence the name of the category. A similar explanation can be extended to the **"Cant Lose Them"** segment except that these have even higher frequency and monetary scores making them even more valuable to the business. All the categories cabe explained along similar lines. 
+
+```{r}
+segment_names <- c("Champions", "Loyal Customers", "Potential Loyalist",
+  "New Customers", "Promising", "Need Attention", "About To Sleep",
+  "At Risk", "Can't Lose Them", "Lost")
+
+
+recency_lower <- c(4, 2, 3, 4, 3, 2, 2, 1, 1, 1)
+recency_upper <- c(5, 5, 5, 5, 4, 3, 3, 2, 1, 2)
+frequency_lower <- c(4, 3, 1, 1, 1, 2, 1, 2, 4, 1)
+frequency_upper <- c(5, 5, 3, 1, 1, 3, 2, 5, 5, 2)
+monetary_lower <- c(4, 3, 1, 1, 1, 2, 1, 2, 4, 1)
+monetary_upper <- c(5, 5, 3, 1, 1, 3, 2, 5, 5, 2)
+
+# We use the segments and the bounds we previously established to group our users into different segments
+segment <- rfm_segment(rfm_outcome,
+                       segment_names,
+                       recency_lower,
+                       recency_upper,
+                       frequency_lower, 
+                       frequency_upper, 
+                       monetary_lower,
+                       monetary_upper)
+```
+
+The table below is the outcome of the segmentation exercise done above. As shown in the table, each customer now has been allocated to a segment. 
+
+```{r}
+library(kableExtra)
+head(segment) %>% 
+  kable() %>% 
+  kable_classic_2()
+```
+
+
+
+## Median Monetary Value of each segment 
+
+The graph below show the median monetary value of each of the segments identified above. **Champions** naturally have a the highest value followed by the **Loyal Customers** segment. The **At Risk** category also has the third largest median monetary value and as alluded to above, the company has to take extra care to make sure its does not lose these customers.
+
+
+```{r}
+rfm_plot_median_monetary(segment)
+```
+
+## Median Frequency per segment
+
+The graph below shows the median frequency of each category. The pattern here mirrors the monetary value pattern with **Champions** having the highest median frequency, followed by **Loyal** customers, then the **At Risk** customers and so on.
+
+
+```{r}
+rfm_plot_median_frequency(segment)
+```
+
+## Median Recency for each segment
+
+The pattern is different here. It is actually more or less the opposite of what was found to be the case with frequency and monetary value. Here the **Champions** have the lowest median recency -an indication that they last made purchases most recently.Of particular not is the median recency of the **At Risk** group which is relatively high indicating that they are at risk of falling into the the **About To Sleep** or perhaps even the **Lost** category which has the highest recency of all the segments for obvious reasons.
+
+```{r}
+rfm_plot_median_recency(segment)
+```
+
+The next steps aim to combine other customer attributes like age, gender, location wealth status etc with the RFM segmentation that was done above. The aim to to build an interactive dashboard on Tableau for further insights.
+
+```{r}
+unique_customers <- rfm.data[!duplicated(rfm.data$customer_id),]
+rfm.df <- segment %>% select(customer_id,segment,amount,recency_days,transaction_count,rfm_score)
+```
+
+
+```{r}
+unique_customers$customer_id <- as.character(unique_customers$customer_id)
+combined <- unique_customers %>% left_join(rfm.df,by= "customer_id") %>%
+  mutate(class = if_else(segment %in% c("Champions", "Loyal Customers"),1,0), amount = amount) %>%
+  select(customer_id, Age,Gender, State,Wealth.Segment,Car_Ownership, amount, transaction_count, segment) %>%
+  arrange(as.numeric(customer_id))
+head(combined) %>%  kable() %>% 
+  kable_classic_2()
+
+
+
+
+```
+ 
+ 
+ 
+## Converting the dataframe to a csv file
+ 
+```{r, include=FALSE}
+write.csv(combined,'/Users/hlaba/Documents/Custom Office Templates/rfm.tableau.data.csv')
+```
